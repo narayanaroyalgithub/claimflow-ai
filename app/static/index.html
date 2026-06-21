@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ClaimFlow AI</title>
+  <style>
+    :root { --ink:#102a2b; --muted:#607778; --paper:#f5f2e9; --card:#fffdf8; --teal:#0b6f69; --mint:#bbded7; --coral:#ef765f; }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:var(--paper); font:15px/1.5 Inter,ui-sans-serif,system-ui,sans-serif; }
+    header { padding:38px max(24px,calc((100vw - 1180px)/2)); background:var(--ink); color:white; display:flex; justify-content:space-between; align-items:end; gap:20px; }
+    h1 { margin:0; font-size:clamp(36px,6vw,70px); letter-spacing:-.06em; line-height:.9; }
+    header p { margin:8px 0 0; color:var(--mint); max-width:620px; }
+    .badge { border:1px solid #ffffff44; border-radius:999px; padding:8px 12px; white-space:nowrap; }
+    main { max-width:1180px; margin:0 auto; padding:30px 24px 70px; }
+    .stats { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-top:-48px; }
+    .stat,.panel { background:var(--card); border:1px solid #d9ddd5; box-shadow:0 8px 25px #173c3520; }
+    .stat { padding:18px; border-radius:14px; }
+    .stat strong { display:block; font-size:28px; color:var(--teal); }
+    .stat span { color:var(--muted); text-transform:uppercase; font-size:11px; letter-spacing:.12em; }
+    .grid { display:grid; grid-template-columns:1fr 1.45fr; gap:18px; margin-top:22px; }
+    .panel { padding:22px; border-radius:16px; min-height:240px; }
+    h2 { margin:0 0 16px; font-size:18px; }
+    input,textarea,button { font:inherit; width:100%; border-radius:9px; border:1px solid #cbd4ce; padding:11px 12px; }
+    textarea { resize:vertical; min-height:88px; margin-top:9px; }
+    button { margin-top:9px; background:var(--teal); color:white; border:0; cursor:pointer; font-weight:700; }
+    button:hover { filter:brightness(1.08); }
+    .patient { padding:10px 0; border-bottom:1px solid #e2e4dd; cursor:pointer; }
+    .patient:hover { color:var(--teal); }
+    .patient small { display:block; color:var(--muted); }
+    .summary { white-space:pre-wrap; font-size:16px; }
+    .meta { color:var(--muted); font-size:12px; margin-top:16px; }
+    .empty { color:var(--muted); padding:22px 0; }
+    .event { border-left:3px solid var(--mint); padding:4px 0 4px 12px; margin:10px 0; }
+    .event b { text-transform:capitalize; color:var(--teal); }
+    a { color:var(--teal); }
+    @media(max-width:780px){ .stats{grid-template-columns:repeat(2,1fr);margin-top:20px}.grid{grid-template-columns:1fr}header{align-items:start;flex-direction:column}.badge{display:none} }
+  </style>
+</head>
+<body>
+  <header>
+    <div><h1>ClaimFlow AI</h1><p>Longitudinal intelligence for synthetic health records—patient context, claims, medications, timeline, retrieval, and agentic summaries.</p></div>
+    <div class="badge">Synthea · FastAPI · LangGraph</div>
+  </header>
+  <main>
+    <section class="stats" id="stats"></section>
+    <section class="grid">
+      <div class="panel">
+        <h2>Find a synthetic patient</h2>
+        <input id="search" placeholder="Name or patient ID">
+        <div id="patients" class="empty">Loading patients…</div>
+      </div>
+      <div class="panel">
+        <h2>Agentic patient summary</h2>
+        <div id="selected" class="empty">Select a patient to begin.</div>
+        <textarea id="question" placeholder="Optional focus question, e.g. What changed in this patient's medication history?"></textarea>
+        <button id="generate" disabled>Run intelligence workflow</button>
+        <div id="result"></div>
+      </div>
+    </section>
+  </main>
+<script>
+  let selected = null;
+  const fmt = n => new Intl.NumberFormat().format(n || 0);
+  async function json(url, options) {
+    const response = await fetch(url, options);
+    if (!response.ok) throw new Error((await response.json()).detail || response.statusText);
+    return response.json();
+  }
+  async function loadStats() {
+    const data = await json('/dashboard/stats');
+    document.querySelector('#stats').innerHTML = Object.entries(data).map(([k,v]) =>
+      `<div class="stat"><strong>${fmt(v)}</strong><span>${k}</span></div>`).join('');
+  }
+  async function loadPatients(q='') {
+    const rows = await json(`/patients?limit=30&q=${encodeURIComponent(q)}`);
+    document.querySelector('#patients').innerHTML = rows.length ? rows.map(p =>
+      `<div class="patient" data-id="${p.id}" data-name="${p.name}"><strong>${p.name}</strong><small>${p.birthdate || 'Unknown birthdate'} · ${p.city || ''} ${p.state || ''}</small></div>`).join('') :
+      '<div class="empty">No matching patients.</div>';
+    document.querySelectorAll('.patient').forEach(el => el.onclick = () => {
+      selected = el.dataset.id;
+      document.querySelector('#selected').innerHTML = `<strong>${el.dataset.name}</strong><br><small>${selected}</small>`;
+      document.querySelector('#generate').disabled = false;
+    });
+  }
+  document.querySelector('#search').addEventListener('input', e => loadPatients(e.target.value));
+  document.querySelector('#generate').onclick = async () => {
+    const button = document.querySelector('#generate');
+    const result = document.querySelector('#result');
+    button.disabled = true; button.textContent = 'Agents are working…';
+    result.innerHTML = '';
+    try {
+      const data = await json('/summary', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({patient_id:selected,question:document.querySelector('#question').value || null})});
+      result.innerHTML = `<h2 style="margin-top:24px">Summary</h2><div class="summary">${data.summary}</div>
+        <div class="meta">${data.llm_used ? 'OpenAI model used' : 'Deterministic local summary'} · ${data.timings.map(t=>`${t.agent}: ${t.duration_ms}ms`).join(' · ')}</div>
+        <h2 style="margin-top:24px">Recent timeline</h2>${data.timeline.slice(0,8).map(e=>`<div class="event"><b>${e.event_type}</b> · ${e.occurred_at.slice(0,10)}<br>${e.title}</div>`).join('')}`;
+    } catch (error) { result.innerHTML = `<p style="color:var(--coral)">${error.message}</p>`; }
+    finally { button.disabled = false; button.textContent = 'Run intelligence workflow'; }
+  };
+  loadStats().catch(console.error); loadPatients().catch(console.error);
+</script>
+</body>
+</html>
+
