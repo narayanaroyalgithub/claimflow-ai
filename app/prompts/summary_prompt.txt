@@ -1,0 +1,5 @@
+Create a concise longitudinal summary of this synthetic patient record. Separate facts from inferences, never diagnose, mention relevant dates, and state when information is unavailable. This is decision support, not medical advice.
+
+Focus question: {question}
+
+Record: {record}
