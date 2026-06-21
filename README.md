@@ -1,174 +1,643 @@
 # ClaimFlow AI
 
-Agentic healthcare intelligence over MITRE Synthea synthetic EHR data. ClaimFlow AI turns
-longitudinal records into patient profiles, timelines, claims analytics, medication intelligence,
-retrieved context, and structured summaries.
+### Agentic Healthcare Intelligence Platform Built on Synthetic EHR Data
 
-> This project uses synthetic data and is not a medical device. Outputs are not for diagnosis,
-> treatment, billing submission, or clinical decision-making.
+---
 
-## What is implemented
+# Overview
 
-- FastAPI REST API and interactive dashboard
-- PostgreSQL/SQLite persistence through SQLAlchemy
-- Streaming import of the 565 MB Synthea CSV ZIP (no extraction required)
-- Patient, encounter, condition, procedure, medication, claim, claim transaction, provider,
-  organization, and payer models
-- Correct claims calculations based on `claims_transactions.csv`
-- LangGraph workflow with patient context, timeline, claims, medication, retrieval, and summary agents
-- OpenAI Responses API (`gpt-4o` by default) and `text-embedding-3-small`
-- Fully functional deterministic fallback when `OPENAI_API_KEY` is absent
-- Retrieval over embedded knowledge documents
-- Prometheus metrics, per-agent timings, health endpoint, tests, Docker, and GitHub Actions CI
+ClaimFlow AI is an AI-powered healthcare intelligence platform that transforms fragmented patient records into structured, contextual, and longitudinal patient insights.
 
-## Quick start without Docker
+Built on MITRE's Synthea synthetic EHR dataset, the system combines FastAPI, PostgreSQL, LangGraph, pgvector, and GPT-4o to create specialized AI agents that retrieve patient context, analyze claims, summarize medical history, and generate clinically meaningful insights.
 
-Python 3.10+ is required.
+Rather than automating revenue cycle operations, ClaimFlow AI focuses on healthcare intelligence and contextual understanding, serving as a foundation for downstream clinical and administrative workflows.
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-cp .env.example .env
-```
+---
 
-For a zero-configuration local demo, set this in `.env`:
+# Motivation
 
-```dotenv
-DATABASE_URL=sqlite:///./claimflow.db
-APP_ENV=development
-```
+Healthcare data is fragmented across:
 
-Then run:
+* Encounters
+* Conditions
+* Procedures
+* Medications
+* Claims
+* Providers
+* Payers
 
-```bash
-python -m app.seed
-uvicorn app.main:app --reload
-```
+Understanding a patient's complete history often requires navigating multiple systems and records.
 
-Open:
+ClaimFlow AI provides AI-powered context retrieval and longitudinal patient understanding through agent orchestration.
 
-- Dashboard: http://localhost:8000
-- API docs: http://localhost:8000/docs
-- Metrics: http://localhost:8000/metrics
+---
 
-Demo identifiers:
+# Dataset
+
+## Source
+
+MITRE Synthea™
+
+## Dataset Used
+
+**1K Sample Synthetic Patient Records (CSV)**
+
+Link - https://synthea.mitre.org/downloads 
+
+Contains approximately 1,000 synthetic patients and their longitudinal medical records. 
+
+### Files Used
 
 ```text
-Patient: demo-patient-001
-Claim:   demo-claim-001
+patients.csv
+encounters.csv
+conditions.csv
+procedures.csv
+medications.csv
+claims.csv
+claims_transactions.csv
+providers.csv
+organizations.csv
+payers.csv
 ```
 
-## Load the supplied Synthea dataset
+### Dataset Properties
 
-Keep large data out of Git. Place `synthea_sample_data_csv_nov2021.zip` in `data/`, or provide its
-absolute path:
+* Fully synthetic
+* HIPAA-safe
+* Open-source
+* Realistic longitudinal records
+* Suitable for AI and healthcare research
 
-```bash
-python -m app.ingestion \
-  --zip /path/to/synthea_sample_data_csv_nov2021.zip \
-  --reset
+---
+
+# System Architecture
+
+```text
+                    Synthea Dataset
+                           │
+                           ▼
+                   Data Loading Pipeline
+                           │
+                           ▼
+                      PostgreSQL
+                           │
+──────────────────────────────────────────
+│          │            │          │
+Patient   Claims     Timeline    Medication
+Agent      Agent      Agent        Agent
+│          │            │          │
+──────────────────────────────────────────
+                           │
+                           ▼
+                   Retrieval Agent
+                           │
+                           ▼
+                    Summary Agent
+                           │
+                           ▼
+                     LangGraph Flow
+                           │
+                           ▼
+                       FastAPI APIs
 ```
 
-The importer streams each CSV directly from the ZIP and commits in batches. For a quick validation:
+---
 
-```bash
-python -m app.ingestion --zip /path/to/dataset.zip --reset --limit 100
+# Tech Stack
+
+### Backend
+
+* Python
+* FastAPI
+
+### Database
+
+* PostgreSQL
+
+### ORM
+
+* SQLAlchemy
+
+### Vector Database
+
+* pgvector
+
+### Agent Framework
+
+* LangGraph
+
+### LLM
+
+* GPT-4o
+
+### Embeddings
+
+* text-embedding-3-small
+
+### Observability
+
+* LangSmith
+
+### Containerization
+
+* Docker
+
+---
+
+# Database Schema
+
+## Patients
+
+Stores demographic information.
+
+```text
+patient_id
+first_name
+last_name
+gender
+birthdate
+race
+ethnicity
+city
+state
 ```
 
-`--limit` is for parser smoke testing only. Each CSV is independently limited, so SQLite temporarily
-disables foreign-key checks for this mode and relational coverage is not guaranteed. Use the complete
-import for the real application.
+---
 
-## Docker/PostgreSQL
+## Conditions
 
-```bash
-cp .env.example .env
-mkdir -p data
-cp /path/to/synthea_sample_data_csv_nov2021.zip data/
-docker compose up -d db
-docker compose run --rm api python -m app.ingestion --zip /data/synthea_sample_data_csv_nov2021.zip --reset
-docker compose up api
+Stores diagnoses and disease history.
+
+Examples:
+
+* Hypertension
+* Type 2 Diabetes
+* Asthma
+
+---
+
+## Encounters
+
+Stores patient visits.
+
+Examples:
+
+* Emergency visits
+* Inpatient admissions
+* Outpatient appointments
+
+---
+
+## Procedures
+
+Stores medical procedures performed.
+
+---
+
+## Medications
+
+Stores medications prescribed to patients.
+
+---
+
+## Claims
+
+Stores claim and financial information.
+
+---
+
+## Claims Transactions
+
+Stores payment and adjustment history.
+
+---
+
+## Providers
+
+Stores physician and organization information.
+
+---
+
+## Payers
+
+Stores insurance payer information.
+
+---
+
+# Agent Architecture
+
+---
+
+# 1. Patient Context Agent
+
+### Purpose
+
+Construct a comprehensive patient profile.
+
+### Responsibilities
+
+* Demographics
+* Diagnoses
+* Medications
+* Encounters
+* Procedures
+
+### Input
+
+```python
+patient_id
 ```
 
-The database image includes pgvector. The application stores portable JSON embeddings so local
-SQLite and PostgreSQL behave consistently; the schema initializes the `vector` extension for
-production expansion.
+### Output
 
-## OpenAI and LangSmith
-
-Add an API key to `.env` to enable model-generated summaries and OpenAI embeddings:
-
-```dotenv
-OPENAI_API_KEY=...
-OPENAI_MODEL=gpt-4o
-OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+```json
+{
+  "conditions": [...],
+  "medications": [...],
+  "encounters": [...]
+}
 ```
 
-Without a key, ClaimFlow AI produces deterministic summaries and local hashed embeddings. This
-makes CI, portfolio review, and offline development reliable. LangGraph tracing can be enabled using:
+---
 
-```dotenv
-LANGSMITH_TRACING=true
-LANGSMITH_API_KEY=...
-LANGSMITH_PROJECT=claimflow-ai
-```
+# 2. Timeline Agent
 
-## API
+### Purpose
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `GET` | `/patients` | Search patients |
-| `GET` | `/patients/{patient_id}` | Full patient profile |
-| `GET` | `/timeline/{patient_id}` | Chronological longitudinal history |
-| `GET` | `/claims/{claim_id}` | Claim financial analytics |
-| `GET` | `/medications/{patient_id}` | Medication and polypharmacy analysis |
-| `GET` | `/procedures/{patient_id}` | Procedure frequency and inpatient history |
-| `POST` | `/summary` | Run the LangGraph intelligence workflow |
-| `GET` | `/dashboard/stats` | Dataset counts |
-| `GET` | `/health` | Service health |
-| `GET` | `/metrics` | Prometheus metrics |
+Build chronological patient history.
 
 Example:
 
-```bash
-curl -X POST http://localhost:8000/summary \
-  -H 'Content-Type: application/json' \
-  -d '{"patient_id":"demo-patient-001","question":"What changed over time?"}'
+```text
+2019
+Hypertension
+
+2020
+Type 2 Diabetes
+
+2022
+Hospital Admission
+
+2024
+Medication Change
 ```
 
-## Architecture
+### Responsibilities
+
+* Event sequencing
+* Disease progression
+* Historical context
+
+---
+
+# 3. Claims Analytics Agent
+
+### Purpose
+
+Analyze claim and spending patterns.
+
+### Responsibilities
+
+* Total spend
+* Covered amount
+* Out-of-pocket costs
+* Payer distribution
+* Historical claims
+
+### Input
+
+```python
+claim_id
+```
+
+### Output
+
+```json
+{
+  "total_cost": 2500,
+  "covered_cost": 1800,
+  "patient_responsibility": 700
+}
+```
+
+---
+
+# 4. Procedure History Agent
+
+### Purpose
+
+Understand prior procedures.
+
+Questions answered:
+
+* Has this patient undergone MRI previously?
+* Which procedures occurred most frequently?
+* How many inpatient encounters exist?
+
+---
+
+# 5. Medication Intelligence Agent
+
+### Purpose
+
+Analyze medication history.
+
+### Responsibilities
+
+* Active medications
+* Duplicate medications
+* Polypharmacy patterns
+
+---
+
+# 6. Retrieval Agent
+
+### Purpose
+
+Provide domain-specific context through Retrieval-Augmented Generation.
+
+Knowledge Sources
+
+* ICD descriptions
+* Procedure descriptions
+* Clinical guidelines
+* Public medical references
+
+### Pipeline
 
 ```text
-Synthea ZIP
-    │ streaming CSV ingestion
-    ▼
-PostgreSQL / SQLite ─── Knowledge documents + embeddings
-    │
-    ▼
-Patient Context → Timeline → Claims → Medication → Retrieval → Summary
-                              LangGraph
-    │
-    ▼
-FastAPI + Dashboard + Prometheus
+Query
+↓
+Embedding
+↓
+Vector Search
+↓
+Top-k Retrieval
+↓
+GPT Context
 ```
 
-## Development
+---
+
+# 7. Summary Agent
+
+### Purpose
+
+Generate structured patient summaries.
+
+Example
+
+```text
+62-year-old female with hypertension and Type 2 diabetes.
+
+Four encounters in the last three years.
+
+Current medications include metformin and lisinopril.
+
+No prior inpatient admissions.
+```
+
+---
+
+# LangGraph Workflow
+
+```text
+START
+ │
+ ▼
+Patient Context Agent
+ │
+ ▼
+Timeline Agent
+ │
+ ▼
+Claims Analytics Agent
+ │
+ ▼
+Procedure History Agent
+ │
+ ▼
+Medication Intelligence Agent
+ │
+ ▼
+Retrieval Agent
+ │
+ ▼
+Summary Agent
+ │
+ ▼
+END
+```
+
+---
+
+# API Endpoints
+
+## Get Patient Profile
+
+```http
+GET /patients/{patient_id}
+```
+
+Returns:
+
+* demographics
+* conditions
+* encounters
+* medications
+
+---
+
+## Get Timeline
+
+```http
+GET /timeline/{patient_id}
+```
+
+Returns chronological history.
+
+---
+
+## Get Claims Analytics
+
+```http
+GET /claims/{claim_id}
+```
+
+Returns:
+
+* total cost
+* covered amount
+* patient responsibility
+
+---
+
+## Get Medication History
+
+```http
+GET /medications/{patient_id}
+```
+
+Returns medication records.
+
+---
+
+## Generate Patient Summary
+
+```http
+POST /summary
+```
+
+Produces a natural-language patient summary.
+
+---
+
+# Retrieval-Augmented Generation
+
+```text
+Medical Documents
+        ↓
+Chunking
+        ↓
+Embeddings
+        ↓
+pgvector
+        ↓
+Similarity Search
+        ↓
+Retrieved Context
+        ↓
+GPT-4o
+        ↓
+Final Response
+```
+
+---
+
+# Observability
+
+Metrics tracked:
+
+### Request Latency
+
+Average processing time per workflow.
+
+---
+
+### Token Usage
+
+Tracks:
+
+* prompt tokens
+* completion tokens
+* cost
+
+---
+
+### Agent Execution Time
+
+Monitors:
+
+* Patient Agent
+* Timeline Agent
+* Retrieval Agent
+* Summary Agent
+
+---
+
+### Workflow Failures
+
+Categories:
+
+* Database failures
+* Retrieval failures
+* LLM failures
+* Validation failures
+
+---
+
+# Deployment
+
+Dockerized services:
+
+```text
+FastAPI
+PostgreSQL
+pgvector
+LangSmith
+```
+
+Run:
 
 ```bash
-pytest
-ruff check .
+docker compose up
 ```
 
-## Data and security notes
+---
 
-- The supplied dataset is synthetic, but the repository excludes ZIP/CSV data by default.
-- Never log API keys or place `.env` in Git.
-- If adapting this project to real health data, perform a formal HIPAA/security review, add
-  authentication and authorization, encryption, audit logging, retention controls, BAA-governed
-  vendors, prompt-injection defenses, and human clinical oversight.
+# Future Enhancements
 
-## License
+### GraphRAG
 
-Code is provided under the MIT License. Synthea is maintained by MITRE and distributed separately
-under its own terms.
+Build patient relationship graphs using Neo4j.
+
+---
+
+### Predictive Risk Models
+
+Estimate:
+
+* Hospital readmission risk
+* Diabetes progression risk
+* Cardiovascular risk
+
+using XGBoost.
+
+---
+
+### Population Health Analytics
+
+Identify:
+
+* High-risk patients
+* Frequent hospital utilizers
+* Chronic disease cohorts
+
+---
+
+### Human-in-the-loop Review
+
+Support physician and administrator review for low-confidence outputs.
+
+---
+
+# Example Workflow
+
+```text
+Patient ID
+↓
+Retrieve Demographics
+↓
+Retrieve Conditions
+↓
+Retrieve Encounters
+↓
+Retrieve Claims
+↓
+Retrieve Medications
+↓
+Retrieve Medical Knowledge
+↓
+Generate Longitudinal Summary
+↓
+Return Contextual Insights
+```
+
+---
+
+# Resume Description
+
+**ClaimFlow AI | FastAPI, LangGraph, PostgreSQL, pgvector, GPT-4o**
+
+Built an agentic healthcare intelligence platform using MITRE's Synthea dataset that coordinated patient context retrieval, timeline generation, claims analytics, medication analysis, and RAG-powered summarization through LangGraph workflows and FastAPI services, enabling contextual understanding of longitudinal patient records.
